@@ -59,7 +59,7 @@ async def main():
     print("\n【步骤 4: 分公司信息模糊匹配】")
     process_company_match(target_file=target_result_file, master_file=tencent_master_path)
 
-    print("\n【步骤 5: 关键词映射兜底】")
+    print("\n【步骤 5: 关键词映射匹配】")
     # 映射表.xlsx 默认在当前根目录，如果需要也可以放到 resource 下
     mapping_file = '映射表.xlsx' 
     process_keyword_match(target_file=target_result_file, master_file=tencent_master_path, kw_file=mapping_file)

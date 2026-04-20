@@ -3,7 +3,7 @@ import math
 import os
 
 def process_keyword_match(target_file, master_file, kw_file='映射表.xlsx'):
-    print(f"[*] 正在进行关键词兜底匹配: {target_file}")
+    print(f"[*] 正在进行关键词映射匹配: {target_file}")
     
     # 1. 读管控表 (Master)
     try:
@@ -42,7 +42,7 @@ def process_keyword_match(target_file, master_file, kw_file='映射表.xlsx'):
         for sheet in xl.sheet_names:
             df = pd.read_excel(target_file, sheet_name=sheet, engine='calamine')
             for idx, row in df.iterrows():
-                # 只对分公司为空的行进行兜底
+                # 只对分公司为空的行进行流程
                 if pd.isna(row.get('分公司')) or str(row.get('分公司')).strip() == "":
                     req_name = str(row.get('需求名称', ''))
                     matched = False
@@ -65,7 +65,7 @@ def process_keyword_match(target_file, master_file, kw_file='映射表.xlsx'):
         with pd.ExcelWriter(target_file, engine='openpyxl') as writer:
             for sheet, data in sheets_data.items():
                 data.to_excel(writer, sheet_name=sheet, index=False)
-        print(f"[√] 关键词兜底匹配完成")
+        print(f"[√] 关键词映射匹配完成")
     except Exception as e:
         print(f"[X] 关键词匹配执行失败: {e}")
 
