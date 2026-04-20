@@ -52,6 +52,12 @@ def process_company_match(target_file, master_file):
                     df.at[idx, '分公司'] = best_match['company']
                     df.at[idx, '专区码'] = best_match['code']
 
+            # 调整列顺序：将“专区码”移到第二列 (索引 1)
+            cols = list(df.columns)
+            if '专区码' in cols:
+                cols.insert(1, cols.pop(cols.index('专区码')))
+                df = df[cols]
+
             sheets_data[sheet] = df
 
         # 3. 写回
