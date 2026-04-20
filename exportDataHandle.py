@@ -32,7 +32,8 @@ def process_logic(source_file="raw_data.xlsx", output_dir=None, timestamp=None):
         timestamp = datetime.now().strftime("%Y%m%d_%H%M")
     
     if not output_dir:
-        output_dir = os.getcwd()
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        output_dir = os.path.join(base_dir, "result")
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
 

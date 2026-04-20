@@ -11,10 +11,13 @@ from companyMatch import process_company_match
 from keywordMatch import process_keyword_match
 from personMatch import process_person_match
 
+# 获取当前脚本所在目录的绝对路径，解决定时任务路径引用问题
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 async def main():
     # 1. 路径和环境初始化
-    default_resource_dir = r"d:\requireCount\resource"
-    default_result_dir = r"d:\requireCount\result"
+    default_resource_dir = os.path.join(BASE_DIR, "resource")
+    default_result_dir = os.path.join(BASE_DIR, "result")
     
     # 命令行参数解析
     resource_dir = sys.argv[1] if len(sys.argv) > 1 else default_resource_dir
@@ -60,12 +63,12 @@ async def main():
     process_company_match(target_file=target_result_file, master_file=tencent_master_path)
 
     print("\n【步骤 5: 关键词映射匹配】")
-    # 映射表.xlsx 默认在当前根目录，如果需要也可以放到 resource 下
-    mapping_file = '映射表.xlsx' 
+    # 映射文件路径设为绝对路径
+    mapping_file = os.path.join(BASE_DIR, '映射表.xlsx') 
     process_keyword_match(target_file=target_result_file, master_file=tencent_master_path, kw_file=mapping_file)
 
     print("\n【步骤 6: 运营负责人回填】")
-    person_mapping_file = '省份负责人分配表.xlsx'
+    person_mapping_file = os.path.join(BASE_DIR, '省份负责人分配表.xlsx')
     process_person_match(target_file=target_result_file, master_file=person_mapping_file)
 
     print(f"\n{'='*50}")

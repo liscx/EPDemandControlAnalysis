@@ -4,13 +4,15 @@ from playwright.async_api import async_playwright
 
 # --- 配置 ---
 CHROME_PATH = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
-USER_DATA_DIR = os.path.join(os.getcwd(), "feishu_session")
+# 获取当前脚本所在目录
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+USER_DATA_DIR = os.path.join(BASE_DIR, "feishu_session")
 BITABLE_URL = "https://mcn9cqf1t1jg.feishu.cn/base/Ntkeb5ZJhaeghvsa91DcO2Mdnog?table=tblUeHywI5GDE0PB&view=vewaUJNj7j"
 
 
 async def export_process(save_dir=None, target_filename=None):
     if not save_dir:
-        save_dir = os.getcwd()
+        save_dir = os.path.join(BASE_DIR, "resource")
     if not os.path.exists(save_dir):
         os.makedirs(save_dir)
 
