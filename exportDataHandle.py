@@ -41,21 +41,21 @@ def process_logic(source_file="raw_data.xlsx", output_dir=None, timestamp=None):
     df = pd.read_excel(source_file)
 
     # 预处理
-    df['专区'] = df['需求名称'].apply(extract_zone)
+    df['专区'] = None
     df['登记日期'] = pd.to_datetime(df['登记日期'], errors='coerce')
     df = df.dropna(subset=['登记日期'])
 
     # 逻辑分析
     cond1 = ((df['需求评审状态'].isin(['需求设计', '规划评审'])) | (df['开发状态'] == '等待任务分配')) & (is_workday_exceeded(df['登记日期'], 5))
-    res1 = df[cond1][['专区', '需求编号', '需求名称', '产品名称', '登记人员', '登记日期', '需求评审状态']]
+    res1 = df[cond1][['专区', '合同编号', '需求编号', '需求名称', '产品名称', '登记人员', '登记日期', '需求评审状态']]
 
     cond2 = ((df['需求评审状态'] == '评审完成') & (df['需求实际状态'].isna() | (df['需求实际状态'] == '开发中')) & (df['开发状态'] == '开发中') & (is_workday_exceeded(df['登记日期'], 10)))
-    res2 = df[cond2][['专区', '需求编号', '需求名称', '产品名称', '登记人员', '登记日期', '需求评审状态', '需求责任人', '开发状态', '开发工作量评审']]
+    res2 = df[cond2][['专区', '合同编号', '需求编号', '需求名称', '产品名称', '登记人员', '登记日期', '需求评审状态', '需求责任人', '开发状态', '开发工作量评审']]
 
     exclude_dev = ['开发中', '已上线', '待任务分配', '作废', '终止', '设计评审', '已完成']
     exclude_actual = ['已上线', '作废', '暂停']
     cond3 = ((df['需求评审状态'] == '评审完成') & (~df['开发状态'].isin(exclude_dev)) & (~df['需求实际状态'].isin(exclude_actual)) & (is_workday_exceeded(df['登记日期'], 15)))
-    res3 = df[cond3][['专区', '需求编号', '需求名称', '产品名称', '登记人员', '登记日期', '需求评审状态', '需求责任人', '开发状态', '开发工作量评审', '需求实际状态']]
+    res3 = df[cond3][['专区', '合同编号', '需求编号', '需求名称', '产品名称', '登记人员', '登记日期', '需求评审状态', '需求责任人', '开发状态', '开发工作量评审', '需求实际状态']]
 
     output_filename = f"需求分析结果_{timestamp}.xlsx"
     output_path = os.path.join(output_dir, output_filename)

@@ -8,7 +8,9 @@ from export_feishu import export_process as export_feishu_func
 from export_tencent import export_tencent_process as export_tencent_func
 from exportDataHandle import process_logic
 from companyMatch import process_company_match
+from contractMatch import process_contract_match
 from keywordMatch import process_keyword_match
+from zoneBackfill import process_zone_backfill
 from personMatch import process_person_match
 
 # 获取当前脚本所在目录的绝对路径，解决定时任务路径引用问题
@@ -29,7 +31,7 @@ async def main():
     timestamp = datetime.now().strftime("%Y%m%d_%H%M")
     
     print(f"{'='*50}")
-    print(f"🚀 开始执行自动化工作流")
+    print(f"🚀 开始执行自动化工作流 (Deterministic v2)")
     print(f"[*] 资源目录: {resource_dir}")
     print(f"[*] 结果目录: {result_dir}")
     print(f"[*] 时间戳: {timestamp}")
@@ -58,15 +60,19 @@ async def main():
         print("[X] 数据处理失败，终止流程。")
         return
 
-    # 4. 匹配回填阶段 (原地修改结果文件)
-    print("\n【步骤 4: 分公司信息模糊匹配】")
-    process_company_match(target_file=target_result_file, master_file=tencent_master_path)
+    # 4. 专区码识别阶段 (ID -> Fuzzy -> Keyword)
+    print("\n【步骤 4.1: 合同编号对应专区码】")
+    process_contract_match(target_file=target_result_file, master_file=tencent_master_path)
 
-    print("\n【步骤 5: 关键词映射匹配】")
-    # 映射文件路径设为绝对路径
+    print("\n【步骤 4.2: 关键词映射专区码(兜底)】")
     mapping_file = os.path.join(BASE_DIR, '映射表.xlsx') 
     process_keyword_match(target_file=target_result_file, master_file=tencent_master_path, kw_file=mapping_file)
 
+    # 5. 专区信息回填阶段 (Code -> Name/Company)
+    print("\n【步骤 5: 专区名及分公司回填】")
+    process_zone_backfill(target_file=target_result_file, master_file=tencent_master_path)
+
+    # 6. 运营负责人回填阶段
     print("\n【步骤 6: 运营负责人回填】")
     person_mapping_file = os.path.join(BASE_DIR, '省份负责人分配表.xlsx')
     process_person_match(target_file=target_result_file, master_file=person_mapping_file)

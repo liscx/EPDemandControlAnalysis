@@ -3,23 +3,9 @@ import math
 import os
 
 def process_keyword_match(target_file, master_file, kw_file='映射表.xlsx'):
-    print(f"[*] 正在进行关键词映射匹配: {target_file}")
+    print(f"[*] 正在通过关键词映射匹配专区码: {target_file}")
     
-    # 1. 读管控表 (Master)
-    try:
-        df_control = pd.read_excel(master_file, sheet_name='专区管控表', engine='calamine')
-        code_map = {}
-        for _, row in df_control.iterrows():
-            code = row.iloc[1]
-            name = row.iloc[2]
-            comp = row.iloc[5]
-            if pd.notna(code):
-                code_map[str(code).strip()] = (name, comp)
-    except Exception as e:
-        print(f"警告：无法读取管控表 {master_file}: {e}")
-        code_map = {}
-
-    # 2. 读关键字映射表
+    # 1. 读关键字映射表
     try:
         df_kw = pd.read_excel(kw_file, usecols=[0, 1])
         df_kw.columns = ['关键字', '专区码']
@@ -33,33 +19,31 @@ def process_keyword_match(target_file, master_file, kw_file='映射表.xlsx'):
             kw_dict[kw] = str(code).strip()
     except Exception as e:
         print(f"警告：无法读取映射表 {kw_file}: {e}")
-        kw_dict = {}
+        return
 
-    # 3. 处理目标表
+    # 2. 处理目标表
     try:
         xl = pd.ExcelFile(target_file, engine='calamine')
         sheets_data = {}
         for sheet in xl.sheet_names:
             df = pd.read_excel(target_file, sheet_name=sheet, engine='calamine')
+            
+            if '专区码' not in df.columns:
+                df['专区码'] = None
+
+            match_count = 0
             for idx, row in df.iterrows():
-                # 只对分公司为空的行进行流程
-                if pd.isna(row.get('分公司')) or str(row.get('分公司')).strip() == "":
+                # 只有当专区码仍然为空时，尝试通过关键词映射
+                val_code = str(df.at[idx, '专区码']).strip() if pd.notna(df.at[idx, '专区码']) else ''
+                if val_code in ['', 'None', 'nan']:
                     req_name = str(row.get('需求名称', ''))
-                    matched = False
                     for kw, code_str in kw_dict.items():
                         if kw in req_name:
-                            if code_str in code_map:
-                                mapped_name, mapped_comp = code_map[code_str]
-                                df.at[idx, '专区'] = mapped_name
-                                df.at[idx, '分公司'] = mapped_comp
-                                if '专区码' in df.columns:
-                                    df.at[idx, '专区码'] = code_str
-                                matched = True
+                            df.at[idx, '专区码'] = code_str
+                            match_count += 1
                             break
                     
-                    if not matched:
-                        df.at[idx, '专区'] = None
-                        df.at[idx, '分公司'] = None
+            print(f"  [+] 工作表 [{sheet}] 映射成功 {match_count} 条专区码")
             sheets_data[sheet] = df
 
         with pd.ExcelWriter(target_file, engine='openpyxl') as writer:
