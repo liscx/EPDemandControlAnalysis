@@ -33,8 +33,8 @@ def process_zone_backfill(target_file, master_file):
                 sheets_data[sheet] = df
                 continue
             
-            if '专区' not in df.columns: df['专区'] = None
-            if '分公司' not in df.columns: df['分公司'] = None
+            if '专区' not in df.columns: df['专区'] = pd.Series(dtype='object')
+            if '分公司' not in df.columns: df['分公司'] = pd.Series(dtype='object')
 
             match_count = 0
             for idx, row in df.iterrows():

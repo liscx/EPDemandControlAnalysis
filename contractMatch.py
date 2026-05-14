@@ -34,8 +34,8 @@ def process_contract_match(target_file, master_file):
                 sheets_data[sheet] = df
                 continue
             
-            if '专区码' not in df.columns: df['专区码'] = None
-            if '专区' not in df.columns: df['专区'] = None
+            if '专区码' not in df.columns: df['专区码'] = pd.Series(dtype='object')
+            if '专区' not in df.columns: df['专区'] = pd.Series(dtype='object')
 
             match_count = 0
             for idx, row in df.iterrows():
@@ -70,9 +70,7 @@ def process_contract_match(target_file, master_file):
         
     except Exception as e:
         print(f"[X] 合同编号匹配执行失败: {e}")
-        
-    except Exception as e:
-        print(f"[X] 合同编号匹配执行失败: {e}")
+
 
 if __name__ == "__main__":
     pass
