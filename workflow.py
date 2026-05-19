@@ -6,7 +6,7 @@ from datetime import datetime
 # 导入子模块
 from export_feishu import export_process as export_feishu_func
 from export_tencent import export_tencent_process as export_tencent_func
-from exportDataHandle import process_logic
+from exportDataHandle import process_logic, finalize_hyperlinks
 from companyMatch import process_company_match
 from contractMatch import process_contract_match
 from keywordMatch import process_keyword_match
@@ -76,6 +76,10 @@ async def main():
     print("\n【步骤 6: 运营负责人回填】")
     person_mapping_file = os.path.join(BASE_DIR, '省份负责人分配表.xlsx')
     process_person_match(target_file=target_result_file, master_file=person_mapping_file)
+
+    # 7. 超链接回填阶段
+    print("\n【步骤 7: 需求名称超链接回填】")
+    finalize_hyperlinks(target_file=target_result_file)
 
     print(f"\n{'='*50}")
     print(f"🎉 全部任务顺利执行完毕！")

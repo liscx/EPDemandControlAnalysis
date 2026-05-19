@@ -3,6 +3,7 @@ import os
 import re
 from datetime import datetime, date, timedelta
 from chinese_calendar import is_workday
+import openpyxl
 
 def extract_zone(text):
     if pd.isna(text):
@@ -41,6 +42,37 @@ def is_calendar_exceeded(date_series, days_limit):
             return 0
     return date_series.apply(count_cal_days) > days_limit
 
+def _extract_hyperlink_map(source_file, col_name='需求名称'):
+    """用 openpyxl 读取源文件，提取 HYPERLINK 公式中的 URL，返回 {原始行号: url} 映射。"""
+    try:
+        wb = openpyxl.load_workbook(source_file, data_only=False)
+    except Exception:
+        return {}
+    ws = wb.active
+    header = [cell.value for cell in ws[1]]
+    col_idx = None
+    for i, h in enumerate(header, 1):
+        if h == col_name:
+            col_idx = i
+            break
+    if col_idx is None:
+        wb.close()
+        return {}
+    url_map = {}
+    for row in range(2, ws.max_row + 1):
+        cell = ws.cell(row=row, column=col_idx)
+        val = str(cell.value) if cell.value else ''
+        if '=HYPERLINK(' in val:
+            # 兼容 =HYPERLINK(...) 和 ==HYPERLINK(...) 两种格式
+            start = val.index('=HYPERLINK(') + len('=HYPERLINK(')
+            rest = val[start:]
+            first_q = rest.index('"')
+            second_q = rest.index('"', first_q + 1)
+            url_map[row] = rest[first_q + 1:second_q]
+    wb.close()
+    return url_map
+
+
 def process_logic(source_file="raw_data.xlsx", output_dir=None, timestamp=None):
     if not os.path.exists(source_file):
         print(f"错误: 找不到原始文件 '{source_file}'。")
@@ -58,6 +90,13 @@ def process_logic(source_file="raw_data.xlsx", output_dir=None, timestamp=None):
     print(f"[*] 正在处理原始数据: {source_file}")
     df = pd.read_excel(source_file)
 
+    # 提取 HYPERLINK 公式中的 URL
+    url_map = _extract_hyperlink_map(source_file, '需求名称')
+    if url_map:
+        df['_原始行号'] = range(2, len(df) + 2)
+        df['_需求名称URL'] = df['_原始行号'].map(url_map)
+        print(f"[*] 已提取 {len(url_map)} 条超链接信息")
+
     # 预处理
     df['专区'] = pd.Series(dtype='object')
     df['登记日期'] = pd.to_datetime(df['登记日期'], errors='coerce')
@@ -65,29 +104,66 @@ def process_logic(source_file="raw_data.xlsx", output_dir=None, timestamp=None):
     df = df[df['登记日期'] >= '2026-01-01']
 
     # 逻辑分析
+    url_col = '_需求名称URL' if '_需求名称URL' in df.columns else None
+
     cond_review = (df['需求评审状态'].isin(['需求设计', '规划评审'])) | (df['开发状态'] == '等待任务分配')
     cond_not_online = df['开发状态'] != '已上线'
     cond1 = cond_review & cond_not_online & (is_workday_exceeded(df['登记日期'], 5) | is_calendar_exceeded(df['登记日期'], 7))
-    res1 = df[cond1][['专区', '合同编号', '需求编号', '需求名称', '产品名称', '登记人员', '登记日期', '需求评审状态']]
+    cols1 = ['专区', '合同编号', '需求编号', '需求名称', '产品名称', '登记人员', '登记日期', '需求评审状态']
+    res1 = df[cond1][cols1 + ([url_col] if url_col else [])]
 
     cond2 = ((df['需求评审状态'] == '评审完成') & (df['需求实际状态'].isna() | (df['需求实际状态'] == '开发中')) & (df['开发状态'] == '开发中') & (is_workday_exceeded(df['登记日期'], 10)))
-    res2 = df[cond2][['专区', '合同编号', '需求编号', '需求名称', '产品名称', '登记人员', '登记日期', '需求评审状态', '需求责任人', '开发状态', '开发工作量评审']]
+    cols2 = ['专区', '合同编号', '需求编号', '需求名称', '产品名称', '登记人员', '登记日期', '需求评审状态', '需求责任人', '开发状态', '开发工作量评审']
+    res2 = df[cond2][cols2 + ([url_col] if url_col else [])]
 
     exclude_dev = ['开发中', '已上线', '待任务分配', '作废', '终止', '设计评审', '已完成']
     exclude_actual = ['已上线', '作废', '暂停']
     cond3 = ((df['需求评审状态'] == '评审完成') & (~df['开发状态'].isin(exclude_dev)) & (~df['需求实际状态'].isin(exclude_actual)) & (is_workday_exceeded(df['登记日期'], 15)))
-    res3 = df[cond3][['专区', '合同编号', '需求编号', '需求名称', '产品名称', '登记人员', '登记日期', '需求评审状态', '需求责任人', '开发状态', '开发工作量评审', '需求实际状态']]
+    cols3 = ['专区', '合同编号', '需求编号', '需求名称', '产品名称', '登记人员', '登记日期', '需求评审状态', '需求责任人', '开发状态', '开发工作量评审', '需求实际状态']
+    res3 = df[cond3][cols3 + ([url_col] if url_col else [])]
 
     output_filename = f"需求分析结果_{timestamp}.xlsx"
     output_path = os.path.join(output_dir, output_filename)
 
-    with pd.ExcelWriter(output_path) as writer:
+    with pd.ExcelWriter(output_path, engine='openpyxl') as writer:
         res1.to_excel(writer, sheet_name="1_评审超时", index=False)
         res2.to_excel(writer, sheet_name="2_开发超时", index=False)
         res3.to_excel(writer, sheet_name="3_上线超期", index=False)
 
     print(f"【分析完成】结果保存至: {output_path}")
     return output_path
+
+
+def finalize_hyperlinks(target_file):
+    """将结果文件中 _需求名称URL 列的数据转为需求名称列的超链接，然后删除该列。"""
+    try:
+        wb = openpyxl.load_workbook(target_file)
+    except Exception as e:
+        print(f"[X] 无法打开文件进行超链接回填: {e}")
+        return
+
+    modified = False
+    for sheet_name in wb.sheetnames:
+        ws = wb[sheet_name]
+        header = [cell.value for cell in ws[1]]
+        if '_需求名称URL' not in header or '需求名称' not in header:
+            continue
+        url_col_idx = header.index('_需求名称URL') + 1
+        name_col_idx = header.index('需求名称') + 1
+        for row in range(2, ws.max_row + 1):
+            url_cell = ws.cell(row=row, column=url_col_idx)
+            url = url_cell.value
+            if url and str(url).strip() and str(url).strip() not in ('None', 'nan', ''):
+                name_cell = ws.cell(row=row, column=name_col_idx)
+                name_cell.hyperlink = str(url).strip()
+                modified = True
+        # 删除 _需求名称URL 列
+        ws.delete_cols(url_col_idx)
+
+    if modified:
+        wb.save(target_file)
+        print(f"[*] 已将需求名称转为超链接并移除辅助列")
+    wb.close()
 
 if __name__ == "__main__":
     pass
