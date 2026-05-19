@@ -35,7 +35,9 @@ def process_contract_match(target_file, master_file):
                 continue
             
             if '专区码' not in df.columns: df['专区码'] = pd.Series(dtype='object')
+            else: df['专区码'] = df['专区码'].astype('object')
             if '专区' not in df.columns: df['专区'] = pd.Series(dtype='object')
+            else: df['专区'] = df['专区'].astype('object')
 
             match_count = 0
             for idx, row in df.iterrows():

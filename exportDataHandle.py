@@ -62,6 +62,7 @@ def process_logic(source_file="raw_data.xlsx", output_dir=None, timestamp=None):
     df['专区'] = pd.Series(dtype='object')
     df['登记日期'] = pd.to_datetime(df['登记日期'], errors='coerce')
     df = df.dropna(subset=['登记日期'])
+    df = df[df['登记日期'] >= '2026-01-01']
 
     # 逻辑分析
     cond_review = (df['需求评审状态'].isin(['需求设计', '规划评审'])) | (df['开发状态'] == '等待任务分配')
