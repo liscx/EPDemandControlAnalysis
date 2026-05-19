@@ -90,12 +90,13 @@ def process_logic(source_file="raw_data.xlsx", output_dir=None, timestamp=None):
     print(f"[*] 正在处理原始数据: {source_file}")
     df = pd.read_excel(source_file)
 
-    # 提取 HYPERLINK 公式中的 URL
+    # 提取 HYPERLINK 公式中的 URL，作为"需求地址"列
     url_map = _extract_hyperlink_map(source_file, '需求名称')
     if url_map:
         df['_原始行号'] = range(2, len(df) + 2)
-        df['_需求名称URL'] = df['_原始行号'].map(url_map)
-        print(f"[*] 已提取 {len(url_map)} 条超链接信息")
+        df['需求地址'] = df['_原始行号'].map(url_map)
+        df = df.drop(columns=['_原始行号'])
+        print(f"[*] 已提取 {len(url_map)} 条需求地址")
 
     # 预处理
     df['专区'] = pd.Series(dtype='object')
@@ -103,24 +104,33 @@ def process_logic(source_file="raw_data.xlsx", output_dir=None, timestamp=None):
     df = df.dropna(subset=['登记日期'])
     df = df[df['登记日期'] >= '2026-01-01']
 
-    # 逻辑分析
-    url_col = '_需求名称URL' if '_需求名称URL' in df.columns else None
+    # 将"需求地址"列放到"需求名称"后面
+    if '需求地址' in df.columns:
+        cols = list(df.columns)
+        cols.remove('需求地址')
+        name_idx = cols.index('需求名称')
+        cols.insert(name_idx + 1, '需求地址')
+        df = df[cols]
 
+    # 逻辑分析
     cond_review = (df['需求评审状态'].isin(['需求设计', '规划评审'])) | (df['开发状态'] == '等待任务分配')
     cond_not_online = df['开发状态'] != '已上线'
     cond1 = cond_review & cond_not_online & (is_workday_exceeded(df['登记日期'], 5) | is_calendar_exceeded(df['登记日期'], 7))
-    cols1 = ['专区', '合同编号', '需求编号', '需求名称', '产品名称', '登记人员', '登记日期', '需求评审状态']
-    res1 = df[cond1][cols1 + ([url_col] if url_col else [])]
+    cols1 = ['专区', '合同编号', '需求编号', '需求名称', '需求地址', '产品名称', '登记人员', '登记日期', '需求评审状态']
+    cols1 = [c for c in cols1 if c in df.columns]
+    res1 = df[cond1][cols1]
 
     cond2 = ((df['需求评审状态'] == '评审完成') & (df['需求实际状态'].isna() | (df['需求实际状态'] == '开发中')) & (df['开发状态'] == '开发中') & (is_workday_exceeded(df['登记日期'], 10)))
-    cols2 = ['专区', '合同编号', '需求编号', '需求名称', '产品名称', '登记人员', '登记日期', '需求评审状态', '需求责任人', '开发状态', '开发工作量评审']
-    res2 = df[cond2][cols2 + ([url_col] if url_col else [])]
+    cols2 = ['专区', '合同编号', '需求编号', '需求名称', '需求地址', '产品名称', '登记人员', '登记日期', '需求评审状态', '需求责任人', '开发状态', '开发工作量评审']
+    cols2 = [c for c in cols2 if c in df.columns]
+    res2 = df[cond2][cols2]
 
     exclude_dev = ['开发中', '已上线', '待任务分配', '作废', '终止', '设计评审', '已完成']
     exclude_actual = ['已上线', '作废', '暂停']
     cond3 = ((df['需求评审状态'] == '评审完成') & (~df['开发状态'].isin(exclude_dev)) & (~df['需求实际状态'].isin(exclude_actual)) & (is_workday_exceeded(df['登记日期'], 15)))
-    cols3 = ['专区', '合同编号', '需求编号', '需求名称', '产品名称', '登记人员', '登记日期', '需求评审状态', '需求责任人', '开发状态', '开发工作量评审', '需求实际状态']
-    res3 = df[cond3][cols3 + ([url_col] if url_col else [])]
+    cols3 = ['专区', '合同编号', '需求编号', '需求名称', '需求地址', '产品名称', '登记人员', '登记日期', '需求评审状态', '需求责任人', '开发状态', '开发工作量评审', '需求实际状态']
+    cols3 = [c for c in cols3 if c in df.columns]
+    res3 = df[cond3][cols3]
 
     output_filename = f"需求分析结果_{timestamp}.xlsx"
     output_path = os.path.join(output_dir, output_filename)
@@ -132,38 +142,6 @@ def process_logic(source_file="raw_data.xlsx", output_dir=None, timestamp=None):
 
     print(f"【分析完成】结果保存至: {output_path}")
     return output_path
-
-
-def finalize_hyperlinks(target_file):
-    """将结果文件中 _需求名称URL 列的数据转为需求名称列的超链接，然后删除该列。"""
-    try:
-        wb = openpyxl.load_workbook(target_file)
-    except Exception as e:
-        print(f"[X] 无法打开文件进行超链接回填: {e}")
-        return
-
-    modified = False
-    for sheet_name in wb.sheetnames:
-        ws = wb[sheet_name]
-        header = [cell.value for cell in ws[1]]
-        if '_需求名称URL' not in header or '需求名称' not in header:
-            continue
-        url_col_idx = header.index('_需求名称URL') + 1
-        name_col_idx = header.index('需求名称') + 1
-        for row in range(2, ws.max_row + 1):
-            url_cell = ws.cell(row=row, column=url_col_idx)
-            url = url_cell.value
-            if url and str(url).strip() and str(url).strip() not in ('None', 'nan', ''):
-                name_cell = ws.cell(row=row, column=name_col_idx)
-                name_cell.hyperlink = str(url).strip()
-                modified = True
-        # 删除 _需求名称URL 列
-        ws.delete_cols(url_col_idx)
-
-    if modified:
-        wb.save(target_file)
-        print(f"[*] 已将需求名称转为超链接并移除辅助列")
-    wb.close()
 
 if __name__ == "__main__":
     pass
